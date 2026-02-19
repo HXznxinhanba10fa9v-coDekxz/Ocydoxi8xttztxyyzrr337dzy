@@ -17,8 +17,6 @@ const REPOS = [
   }
 ]
 
-const challenges = new Map()
-
 function randomNonce() {
   return crypto.randomUUID().replace(/-/g, "")
 }
@@ -37,10 +35,10 @@ async function handle(req) {
 
   const url = new URL(req.url)
 
+  // ===== CHALLENGE =====
   if (url.pathname === "/challenge") {
 
     const nonce = randomNonce()
-    challenges.set(nonce, Date.now())
 
     return new Response(
       JSON.stringify({ nonce }),
@@ -48,6 +46,7 @@ async function handle(req) {
     )
   }
 
+  // ===== VERIFY =====
   if (url.pathname === "/verify" && req.method === "POST") {
 
     let body
@@ -63,11 +62,6 @@ async function handle(req) {
 
     if (!nonce || !hash)
       return new Response("", { status: 200 })
-
-    if (!challenges.has(nonce))
-      return new Response("", { status: 200 })
-
-    challenges.delete(nonce)
 
     for (const sig of VALID_SIGNATURES) {
 
