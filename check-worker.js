@@ -1,4 +1,4 @@
-addEventListener('fetch', event => {
+addEventListener("fetch", event => {
   event.respondWith(handle(event.request))
 })
 
@@ -17,8 +17,6 @@ const REPOS = [
   }
 ]
 
-const NONCES = new Map()
-
 function randomNonce() {
   return crypto.randomUUID().replace(/-/g, "")
 }
@@ -36,12 +34,10 @@ async function handle(req) {
   const url = new URL(req.url)
 
   // ========================
-  // CHALLENGE ENDPOINT
+  // CHALLENGE
   // ========================
   if (url.pathname === "/challenge") {
     const nonce = randomNonce()
-    NONCES.set(nonce, Date.now())
-
     return new Response(
       JSON.stringify({ nonce }),
       { headers: { "Content-Type": "application/json" } }
@@ -49,7 +45,7 @@ async function handle(req) {
   }
 
   // ========================
-  // VERIFY ENDPOINT
+  // VERIFY (STATELESS)
   // ========================
   if (url.pathname === "/verify" && req.method === "POST") {
     let body
@@ -71,28 +67,11 @@ async function handle(req) {
       })
     }
 
-    if (!NONCES.has(nonce)) {
-      return new Response(JSON.stringify([]), {
-        headers: { "Content-Type": "application/json" }
-      })
-    }
-
-    const created = NONCES.get(nonce)
-
-    if (Date.now() - created > 60000) {
-      NONCES.delete(nonce)
-      return new Response(JSON.stringify([]), {
-        headers: { "Content-Type": "application/json" }
-      })
-    }
-
-    NONCES.delete(nonce)
-
     for (const sig of VALID_SIGNATURES) {
       const expected = await sha256(sig + nonce)
       if (expected === hash) {
         return new Response(
-          JSON.stringify(REPOS), // ✅ RETURN ARRAY (FIXED)
+          JSON.stringify(REPOS),
           { headers: { "Content-Type": "application/json" } }
         )
       }
