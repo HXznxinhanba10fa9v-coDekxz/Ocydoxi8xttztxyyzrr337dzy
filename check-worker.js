@@ -35,35 +35,55 @@ async function sha256(text) {
 async function handle(req) {
   const url = new URL(req.url)
 
+  // ========================
+  // CHALLENGE ENDPOINT
+  // ========================
   if (url.pathname === "/challenge") {
     const nonce = randomNonce()
     NONCES.set(nonce, Date.now())
+
     return new Response(
       JSON.stringify({ nonce }),
       { headers: { "Content-Type": "application/json" } }
     )
   }
 
+  // ========================
+  // VERIFY ENDPOINT
+  // ========================
   if (url.pathname === "/verify" && req.method === "POST") {
     let body
 
     try {
       body = await req.json()
     } catch {
-      return new Response("", { status: 200 })
+      return new Response(JSON.stringify([]), {
+        headers: { "Content-Type": "application/json" }
+      })
     }
 
     const nonce = body?.nonce
     const hash = body?.hash?.toUpperCase()
 
-    if (!nonce || !hash) return new Response("", { status: 200 })
-    if (!NONCES.has(nonce)) return new Response("", { status: 200 })
+    if (!nonce || !hash) {
+      return new Response(JSON.stringify([]), {
+        headers: { "Content-Type": "application/json" }
+      })
+    }
+
+    if (!NONCES.has(nonce)) {
+      return new Response(JSON.stringify([]), {
+        headers: { "Content-Type": "application/json" }
+      })
+    }
 
     const created = NONCES.get(nonce)
 
     if (Date.now() - created > 60000) {
       NONCES.delete(nonce)
-      return new Response("", { status: 200 })
+      return new Response(JSON.stringify([]), {
+        headers: { "Content-Type": "application/json" }
+      })
     }
 
     NONCES.delete(nonce)
@@ -72,13 +92,15 @@ async function handle(req) {
       const expected = await sha256(sig + nonce)
       if (expected === hash) {
         return new Response(
-          JSON.stringify({ repos: REPOS }),
+          JSON.stringify(REPOS), // ✅ RETURN ARRAY (FIXED)
           { headers: { "Content-Type": "application/json" } }
         )
       }
     }
 
-    return new Response("", { status: 200 })
+    return new Response(JSON.stringify([]), {
+      headers: { "Content-Type": "application/json" }
+    })
   }
 
   return new Response("Not Found", { status: 404 })
