@@ -6,10 +6,6 @@ const VALID_SIGNATURES = [
   "B3C8506BC302B7FC21720BF39DB48BFC757804F755F2407998F3A319A8DC7EA1"
 ]
 
-// 🔥 LANGSUNG KE PLUGINS.JSON
-const PLUGINS_URL =
-  "https://raw.githubusercontent.com/HXznxinhanba10fa9v-coDekxz/Csnwy7XzmNb/builds/plugins.json"
-
 const NONCES = new Map()
 
 function randomNonce() {
@@ -44,52 +40,63 @@ async function handle(req) {
   // VERIFY
   // ========================
   if (url.pathname === "/verify" && req.method === "POST") {
-    let body
 
+    let body
     try {
       body = await req.json()
     } catch {
-      return new Response(JSON.stringify([]), {
-        headers: { "Content-Type": "application/json" }
-      })
+      return new Response(
+        JSON.stringify({ repos: [] }),
+        { headers: { "Content-Type": "application/json" } }
+      )
     }
 
     const nonce = body?.nonce
     const hash = body?.hash?.toUpperCase()
 
     if (!nonce || !hash || !NONCES.has(nonce)) {
-      return new Response(JSON.stringify([]), {
-        headers: { "Content-Type": "application/json" }
-      })
+      return new Response(
+        JSON.stringify({ repos: [] }),
+        { headers: { "Content-Type": "application/json" } }
+      )
     }
 
     const created = NONCES.get(nonce)
 
     if (Date.now() - created > 60000) {
       NONCES.delete(nonce)
-      return new Response(JSON.stringify([]), {
-        headers: { "Content-Type": "application/json" }
-      })
+      return new Response(
+        JSON.stringify({ repos: [] }),
+        { headers: { "Content-Type": "application/json" } }
+      )
     }
 
     NONCES.delete(nonce)
 
     for (const sig of VALID_SIGNATURES) {
       const expected = await sha256(sig + nonce)
-      if (expected === hash) {
-        // 🔥 FETCH PLUGINS.JSON LANGSUNG
-        const plugins = await fetch(PLUGINS_URL)
-        const text = await plugins.text()
 
-        return new Response(text, {
-          headers: { "Content-Type": "application/json" }
-        })
+      if (expected === hash) {
+
+        // ✅ FORMAT SESUAI KODE KOTLIN
+        return new Response(
+          JSON.stringify({
+            repos: [
+              {
+                name: "M0ViesM0d68",
+                url: "https://raw.githubusercontent.com/HXznxinhanba10fa9v-coDekxz/Csnwy7XzmNb/main/repo.json"
+              }
+            ]
+          }),
+          { headers: { "Content-Type": "application/json" } }
+        )
       }
     }
 
-    return new Response(JSON.stringify([]), {
-      headers: { "Content-Type": "application/json" }
-    })
+    return new Response(
+      JSON.stringify({ repos: [] }),
+      { headers: { "Content-Type": "application/json" } }
+    )
   }
 
   return new Response("Not Found", { status: 404 })
