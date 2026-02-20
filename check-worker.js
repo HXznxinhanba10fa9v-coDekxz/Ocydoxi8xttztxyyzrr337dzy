@@ -26,7 +26,6 @@ function randomNonce() {
 async function sha256(text) {
   const data = new TextEncoder().encode(text)
   const hash = await crypto.subtle.digest("SHA-256", data)
-
   return Array.from(new Uint8Array(hash))
     .map(b => b.toString(16).padStart(2, "0"))
     .join("")
@@ -39,7 +38,6 @@ async function handle(req) {
   if (url.pathname === "/challenge") {
     const nonce = randomNonce()
     NONCES.set(nonce, Date.now())
-
     return new Response(
       JSON.stringify({ nonce }),
       { headers: { "Content-Type": "application/json" } }
@@ -58,11 +56,8 @@ async function handle(req) {
     const nonce = body?.nonce
     const hash = body?.hash?.toUpperCase()
 
-    if (!nonce || !hash)
-      return new Response("", { status: 200 })
-
-    if (!NONCES.has(nonce))
-      return new Response("", { status: 200 })
+    if (!nonce || !hash) return new Response("", { status: 200 })
+    if (!NONCES.has(nonce)) return new Response("", { status: 200 })
 
     const created = NONCES.get(nonce)
 
@@ -75,7 +70,6 @@ async function handle(req) {
 
     for (const sig of VALID_SIGNATURES) {
       const expected = await sha256(sig + nonce)
-
       if (expected === hash) {
         return new Response(
           JSON.stringify({ repos: REPOS }),
