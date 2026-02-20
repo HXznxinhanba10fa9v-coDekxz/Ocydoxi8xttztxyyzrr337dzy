@@ -1,103 +1,75 @@
 addEventListener("fetch", event => {
-  event.respondWith(handle(event.request))
+  event.respondWith(handleRequest(event.request))
 })
 
 const VALID_SIGNATURES = [
   "B3C8506BC302B7FC21720BF39DB48BFC757804F755F2407998F3A319A8DC7EA1"
 ]
 
-const NONCES = new Map()
+const REPO_URL = "https://raw.githubusercontent.com/HXznxinhanba10fa9v-coDekxz/Csnwy7XzmNb/main/repo.json"
 
-function randomNonce() {
-  return crypto.randomUUID().replace(/-/g, "")
+let CURRENT_NONCE = null
+
+function generateNonce() {
+  const arr = new Uint8Array(16)
+  crypto.getRandomValues(arr)
+  return Array.from(arr).map(b => ("0" + b.toString(16)).slice(-2)).join("").toUpperCase()
 }
 
-async function sha256(text) {
-  const data = new TextEncoder().encode(text)
-  const hash = await crypto.subtle.digest("SHA-256", data)
-  return Array.from(new Uint8Array(hash))
-    .map(b => b.toString(16).padStart(2, "0"))
-    .join("")
-    .toUpperCase()
-}
+async function handleRequest(request) {
+  try {
+    const url = new URL(request.url)
 
-async function handle(req) {
-  const url = new URL(req.url)
-
-  // ========================
-  // CHALLENGE
-  // ========================
-  if (url.pathname === "/challenge") {
-    const nonce = randomNonce()
-    NONCES.set(nonce, Date.now())
-
-    return new Response(JSON.stringify({ nonce }), {
-      headers: { "Content-Type": "application/json" }
-    })
-  }
-
-  // ========================
-  // VERIFY
-  // ========================
-  if (url.pathname === "/verify" && req.method === "POST") {
-
-    let body
-    try {
-      body = await req.json()
-    } catch {
-      return new Response(
-        JSON.stringify({ repos: [] }),
-        { headers: { "Content-Type": "application/json" } }
-      )
+    if (url.pathname === "/challenge") {
+      CURRENT_NONCE = generateNonce()
+      return new Response(JSON.stringify({ nonce: CURRENT_NONCE }), {
+        headers: { "Content-Type": "application/json" }
+      })
     }
 
-    const nonce = body?.nonce
-    const hash = body?.hash?.toUpperCase()
+    if (url.pathname === "/verify") {
+      if (request.method !== "POST") {
+        return new Response(JSON.stringify({ error: "POST only" }), { status: 405 })
+      }
 
-    if (!nonce || !hash || !NONCES.has(nonce)) {
-      return new Response(
-        JSON.stringify({ repos: [] }),
-        { headers: { "Content-Type": "application/json" } }
-      )
-    }
+      const data = await request.json()
+      const hashSent = data.hash?.toUpperCase() || ""
+      const nonce = data.nonce?.toUpperCase() || ""
 
-    const created = NONCES.get(nonce)
+      if (!CURRENT_NONCE || nonce !== CURRENT_NONCE) {
+        return new Response(JSON.stringify({ repos: [] }), {
+          headers: { "Content-Type": "application/json" }
+        })
+      }
 
-    if (Date.now() - created > 60000) {
-      NONCES.delete(nonce)
-      return new Response(
-        JSON.stringify({ repos: [] }),
-        { headers: { "Content-Type": "application/json" } }
-      )
-    }
+      CURRENT_NONCE = null
 
-    NONCES.delete(nonce)
+      const encoder = new TextEncoder()
+      const validHashes = await Promise.all(VALID_SIGNATURES.map(async sig => {
+        const data = encoder.encode(sig + nonce)
+        const hashBuffer = await crypto.subtle.digest("SHA-256", data)
+        return Array.from(new Uint8Array(hashBuffer)).map(b => ("0" + b.toString(16)).slice(-2)).join("").toUpperCase()
+      }))
 
-    for (const sig of VALID_SIGNATURES) {
-      const expected = await sha256(sig + nonce)
-
-      if (expected === hash) {
-
-        // ✅ FORMAT SESUAI KODE KOTLIN
-        return new Response(
-          JSON.stringify({
-            repos: [
-              {
-                name: "M0ViesM0d68",
-                url: "https://raw.githubusercontent.com/HXznxinhanba10fa9v-coDekxz/Csnwy7XzmNb/main/repo.json"
-              }
-            ]
-          }),
-          { headers: { "Content-Type": "application/json" } }
-        )
+      if (validHashes.includes(hashSent)) {
+        return new Response(JSON.stringify({
+          repos: [{ url: REPO_URL }]
+        }), {
+          headers: { "Content-Type": "application/json" }
+        })
+      } else {
+        return new Response(JSON.stringify({ repos: [] }), {
+          headers: { "Content-Type": "application/json" }
+        })
       }
     }
 
-    return new Response(
-      JSON.stringify({ repos: [] }),
-      { headers: { "Content-Type": "application/json" } }
-    )
-  }
+    return new Response(JSON.stringify({ error: "Not found" }), { status: 404 })
 
-  return new Response("Not Found", { status: 404 })
+  } catch (e) {
+    return new Response(JSON.stringify({ error: "Invalid request" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" }
+    })
+  }
 }
