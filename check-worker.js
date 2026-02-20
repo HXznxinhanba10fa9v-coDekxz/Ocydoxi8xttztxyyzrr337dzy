@@ -1,78 +1,49 @@
-const PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA9qvXo4hfzFMW1pT5DkdF
-I+gC/UVI2/jIvU3C7cNvQjU2Hd4wNnU8qVr1obpIYYBnoiDZW1VBsgm5Jw8/A5jn
-UXV9sv5CBzqnuII41ugdfvZTdwooDYtUIc2yq+AGlnyZlB/2FUozXCM8vxVLuoPp
-RIVkjkxb3unprNNgIn7sSujhKeCAcXViiEkIw8KQBAiA/xHpetpK6jDz/Y3j7ON/
-DVuLicg/45bDvjGQRw6F9waNQRZEd909u3f/BCD/PnpZpSLIcK1IsOZmZgfNPjWT
-fBfykiPJwhOaw8llCDNpyPgtSs+6j2SJaOw4ioucWl+Dzup4XIdk4TFugnBi1D+d
-/QIDAQAB
------END PUBLIC KEY-----`;
+export default {
+  async fetch(request, env) {
 
-const REPO_URL = "https://raw.githubusercontent.com/HXznxinhanba10fa9v-coDekxz/Csnwy7XzmNb/main/repo.json";
-let CURRENT_NONCE = null;
+    if (request.method !== "POST") {
+      return new Response("", { status: 403 });
+    }
 
-// Hasil hash dari APK + nonce dikirim client
-async function importPublicKey(pem) {
-    const b64 = pem.replace(/-----.*?-----/g, '').replace(/\s+/g, '');
-    const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-    return crypto.subtle.importKey(
-        'spki',
-        raw.buffer,
-        { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    try {
+      const { sig, ts, hmac } = await request.json();
+
+      const VALID_SIGNATURE = env.APP_SIGNATURE;
+      const SECRET = env.SECRET_KEY;
+
+      if (!sig || sig !== VALID_SIGNATURE) {
+        return new Response("", { status: 200 });
+      }
+
+      const now = Math.floor(Date.now() / 1000);
+      if (!ts || Math.abs(now - ts) > 60) {
+        return new Response("", { status: 200 });
+      }
+
+      const encoder = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        "raw",
+        encoder.encode(SECRET),
+        { name: "HMAC", hash: "SHA-256" },
         false,
-        ['verify']
-    );
-}
+        ["sign"]
+      );
 
-async function verifySignature(signatureB64, data) {
-    const key = await importPublicKey(PUBLIC_KEY_PEM);
-    const sigBuffer = Uint8Array.from(atob(signatureB64), c => c.charCodeAt(0));
-    const dataBuffer = new TextEncoder().encode(data);
-    return crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, sigBuffer, dataBuffer);
-}
+      const data = encoder.encode(sig + ts);
+      const buffer = await crypto.subtle.sign("HMAC", key, data);
 
-addEventListener("fetch", event => {
-    event.respondWith(handleRequest(event.request));
-});
+      const generated = [...new Uint8Array(buffer)]
+        .map(b => b.toString(16).padStart(2, "0"))
+        .join("");
 
-function generateNonce() {
-    const arr = new Uint8Array(16);
-    crypto.getRandomValues(arr);
-    return Array.from(arr).map(b => ("0" + b.toString(16)).slice(-2)).join("").toUpperCase();
-}
+      if (generated !== hmac) {
+        return new Response("", { status: 200 });
+      }
 
-async function handleRequest(request) {
-    const url = new URL(request.url);
+      return fetch("https://raw.githubusercontent.com/HXznxinhanba10fa9v-coDekxz/Csnwy7XzmNb/main/repo.json");
 
-    if (url.pathname === "/challenge") {
-        CURRENT_NONCE = generateNonce();
-        return new Response(JSON.stringify({ nonce: CURRENT_NONCE }), {
-            headers: { "Content-Type": "application/json" }
-        });
+    } catch {
+      return new Response("", { status: 200 });
     }
-
-    if (url.pathname === "/verify") {
-        if (request.method !== "POST") {
-            return new Response(JSON.stringify({ error: "POST only" }), { status: 405 });
-        }
-
-        const data = await request.json();
-        const signature = data.signature || "";
-        const nonce = data.nonce || "";
-
-        if (!CURRENT_NONCE || nonce !== CURRENT_NONCE) {
-            return new Response(JSON.stringify({ repos: [] }), { headers: { "Content-Type": "application/json" } });
-        }
-
-        CURRENT_NONCE = null;
-
-        const valid = await verifySignature(signature, nonce);
-        if (valid) {
-            return new Response(JSON.stringify({ repos: [{ url: REPO_URL }] }), { headers: { "Content-Type": "application/json" } });
-        } else {
-            return new Response(JSON.stringify({ repos: [] }), { headers: { "Content-Type": "application/json" } });
-        }
-    }
-
-    return new Response(JSON.stringify({ error: "Not found" }), { status: 404 });
-}
+  }
+};
