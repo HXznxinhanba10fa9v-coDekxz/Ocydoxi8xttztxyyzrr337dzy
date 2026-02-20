@@ -3,7 +3,7 @@ addEventListener('fetch', event => {
 })
 
 const VALID_SIGNATURES = [
-  "B3C8506BC302B7FC21720BF39B48BFC757804F755F2407998F3A319A8DC7EA1"
+  "B3C8506BC302B7FC21720BF39DB48BFC757804F755F2407998F3A319A8DC7EA1"
 ]
 
 const REPOS = [
@@ -16,6 +16,8 @@ const REPOS = [
     url: "https://pastebin.com/raw/J9TtFFDX"
   }
 ]
+
+const NONCES = new Map()
 
 function randomNonce() {
   return crypto.randomUUID().replace(/-/g, "")
@@ -32,13 +34,11 @@ async function sha256(text) {
 }
 
 async function handle(req) {
-
   const url = new URL(req.url)
 
-  // ===== CHALLENGE =====
   if (url.pathname === "/challenge") {
-
     const nonce = randomNonce()
+    NONCES.set(nonce, Date.now())
 
     return new Response(
       JSON.stringify({ nonce }),
@@ -46,9 +46,7 @@ async function handle(req) {
     )
   }
 
-  // ===== VERIFY =====
   if (url.pathname === "/verify" && req.method === "POST") {
-
     let body
 
     try {
@@ -63,8 +61,19 @@ async function handle(req) {
     if (!nonce || !hash)
       return new Response("", { status: 200 })
 
-    for (const sig of VALID_SIGNATURES) {
+    if (!NONCES.has(nonce))
+      return new Response("", { status: 200 })
 
+    const created = NONCES.get(nonce)
+
+    if (Date.now() - created > 60000) {
+      NONCES.delete(nonce)
+      return new Response("", { status: 200 })
+    }
+
+    NONCES.delete(nonce)
+
+    for (const sig of VALID_SIGNATURES) {
       const expected = await sha256(sig + nonce)
 
       if (expected === hash) {
