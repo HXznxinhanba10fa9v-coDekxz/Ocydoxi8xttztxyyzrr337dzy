@@ -7,14 +7,14 @@ addEventListener("fetch", event => {
 });
 
 async function handleRequest(request) {
-    try {
-        if (request.method !== "POST") {
-            return new Response("Not Found", { status: 404 });
-        }
+    if (request.method !== "POST") {
+        return new Response("Not Found", { status: 404 });
+    }
 
+    try {
         const data = await request.json();
         let signature = data.signature;
-        if (!signature) return Response.json({ repo: "" });
+        if (!signature) return new Response("Not Found", { status: 404 });
 
         signature = signature.replace(/:/g, "").toUpperCase();
 
@@ -23,9 +23,9 @@ async function handleRequest(request) {
                 repo: "https://raw.githubusercontent.com/HXznxinhanba10fa9v-coDekxz/Csnwy7XzmNb/main/repo.json"
             });
         } else {
-            return Response.json({ repo: "" });
+            return new Response("Not Found", { status: 404 });
         }
     } catch (e) {
-        return Response.json({ repo: "" });
+        return new Response("Not Found", { status: 404 });
     }
 }
