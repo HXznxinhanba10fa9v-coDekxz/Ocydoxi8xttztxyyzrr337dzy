@@ -8,6 +8,10 @@ addEventListener("fetch", event => {
 
 async function handleRequest(request) {
     try {
+        if (request.method !== "POST") {
+            return new Response("Not Found", { status: 404 });
+        }
+
         const data = await request.json();
         let signature = data.signature;
         if (!signature) return Response.json({ repo: "" });
