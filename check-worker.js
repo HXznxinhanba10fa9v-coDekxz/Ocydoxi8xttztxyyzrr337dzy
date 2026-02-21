@@ -3,29 +3,35 @@ const VALID_SIGNATURES = [
 ];
 
 addEventListener("fetch", event => {
-    event.respondWith(handleRequest(event.request));
-});
+    event.respondWith(handleRequest(event.request))
+})
 
 async function handleRequest(request) {
+    const url = new URL(request.url)
+
+    if (url.pathname !== "/validate") {
+        return new Response("Not Found", { status: 404 })
+    }
+
     if (request.method !== "POST") {
-        return new Response("Not Found", { status: 404 });
+        return new Response("Not Found", { status: 404 })
     }
 
     try {
-        const data = await request.json();
-        let signature = data.signature;
-        if (!signature) return new Response("Not Found", { status: 404 });
+        const data = await request.json()
+        let signature = data.signature
+        if (!signature) return Response.json({ repo: "" })
 
-        signature = signature.replace(/:/g, "").toUpperCase();
+        signature = signature.replace(/:/g, "").toUpperCase()
 
         if (VALID_SIGNATURES.includes(signature)) {
             return Response.json({
                 repo: "https://raw.githubusercontent.com/HXznxinhanba10fa9v-coDekxz/Csnwy7XzmNb/main/repo.json"
-            });
+            })
         } else {
-            return new Response("Not Found", { status: 404 });
+            return Response.json({ repo: "" })
         }
     } catch (e) {
-        return new Response("Not Found", { status: 404 });
+        return Response.json({ repo: "" })
     }
 }
